@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from collections import deque
 import numpy as np
 
-from env import DroneEnv
+from env_cyclegan import DroneEnv
 
 
 env = DroneEnv()

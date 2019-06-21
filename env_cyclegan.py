@@ -9,6 +9,10 @@ import math
 import pprint
 
 import csv
+from PIL import Image
+import PIL.Image as pilimg 
+import glob
+
 
 class DroneEnv():
     def __init__(self):
@@ -39,6 +43,7 @@ class DroneEnv():
         #self.client.moveByVelocityAsync(1, 0, 0.8, 5).join()
 
         self.ep = 0
+        self.index = 0
 
     def step(self, action):
         print("doing step")
@@ -46,7 +51,7 @@ class DroneEnv():
         print("quad_offset: ", self.quad_offset)
         quad_state = self.client.getMultirotorState().kinematics_estimated.position
         quad_vel = self.client.getMultirotorState().kinematics_estimated.linear_velocity
-        self.client.moveByVelocityAsync(quad_vel.x_val+self.quad_offset[0], quad_vel.y_val+self.quad_offset[1], quad_vel.z_val+self.quad_offset[2], 20).join()
+        self.client.moveByVelocityAsync(quad_vel.x_val+self.quad_offset[0], quad_vel.y_val+self.quad_offset[1], quad_vel.z_val+self.quad_offset[2], 10).join()
         time.sleep(0.5)
         #self.client.moveToPositionAsync(quad_state.x_val+self.quad_offset[0], quad_state.y_val+self.quad_offset[1], quad_state.z_val+self.quad_offset[2], 5).join()
         #time.sleep(0.5)
@@ -78,6 +83,7 @@ class DroneEnv():
         quad_vel = self.client.getMultirotorState().kinematics_estimated.linear_velocity
         print("state x:",quad_state.x_val, " y: ",quad_state.y_val, " z: ",quad_state.z_val)
 
+        self.index += 1
         result = self.compute_reward(quad_state, quad_vel, collision_info)
         state = self.get_obs()
         done = self.isDone(result)
@@ -113,17 +119,36 @@ class DroneEnv():
         self.cnt_collision = 0
         self.collision_change = False
 
+        self.index = 0
+
         self.client.takeoffAsync().join()
         print("take off moving positon")
         self.client.moveToPositionAsync(initX, initY, initZ, 5).join()
-        responses = self.client.simGetImages([airsim.ImageRequest("1", airsim.ImageType.Scene, False, False)])
+
+        image_list = []
+        for filename in glob.glob('trained_drone_syn/*.png'): #assuming png
+            im=Image.open(filename)
+            image_list.append(im)
+        responses = image_list[self.index]
+        print(type(responses))
+        #print(type(responses[0]))
         obs = self.transform_input(responses)
 
         return obs
 
     def get_obs(self):
-        responses = self.client.simGetImages([airsim.ImageRequest("1", airsim.ImageType.Scene, False, False)])
+        #responses = self.client.simGetImages([airsim.ImageRequest("1", airsim.ImageType.Scene, False, False)])
+        #obs = self.transform_input(responses)
+
+        image_list = []
+        for filename in glob.glob('trained_drone_syn/*.png'): #assuming png
+            im=Image.open(filename)
+            image_list.append(im)
+        responses = image_list[self.index]
+        print(type(responses))
+        #print(type(responses[0]))
         obs = self.transform_input(responses)
+
         return obs
 
     def get_distance(self, quad_state):
@@ -245,16 +270,22 @@ class DroneEnv():
         return done
 
     def transform_input(self, responses):
-        response = responses[0]
+        """
+        #response = responses[0]
+        response = responses
+        print(response)
+        img1d = np.array(response)
+        #print(img1d.size)
         img1d = np.fromstring(response.image_data_uint8, dtype=np.uint8) # get numpy array
-        img_rgba = img1d.reshape(response.height, response.width, 4) # reshape array to 4 channel image array H X W X 3
-        print("height, width: ", response.height, response.width)
+        img_rgba = img1d.reshape(144, 256, 4) # reshape array to 4 channel image array H X W X 3
+
         # original image is fliped vertically
         img2d = np.flipud(img_rgba)    
 
         from PIL import Image
         image = Image.fromarray(img2d)
-        im_final = np.array(image.resize((84, 84)).convert('L')) 
+        """
+        im_final = np.array(responses.resize((84, 84)).convert('L')) 
 
         return im_final
 
